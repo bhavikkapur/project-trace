@@ -125,7 +125,7 @@ h1, h2, h3, h4 { margin: 0; font-size: inherit; font-weight: inherit; }
 p              { margin: 0; }
 ul             { margin: 0; padding: 0; list-style: none; }
 a              { color: inherit; text-decoration: inherit; }
-img, svg       { display: block; vertical-align: middle; }
+img, svg       { display: block; }
 img            { max-width: 100%; height: auto; }
 
 ::-webkit-scrollbar { display: none; }
