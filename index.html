@@ -19,6 +19,8 @@
 -->
 
 <!-- Fonts & icons -->
+<!-- Map library (Leaflet) for the live audit map -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="stylesheet.css">
 <link href="https://fonts.googleapis.com" rel="preconnect">
 <link crossorigin href="https://fonts.gstatic.com" rel="preconnect">
@@ -350,6 +352,70 @@
 
 
   <!-- ==================================================================
+       SECTION 4B: LIVE AUDIT COUNT + MAP
+       Pulls submissions from KoboToolbox (see the CONFIG block in the
+       <script> at the bottom of this file to change the form or refresh rate).
+       ================================================================== -->
+  <section class="section section--ruled" id="audit-live">
+    <div class="section__inner">
+
+      <div class="split-header audit-head">
+        <div class="audit-head__title">
+          <h2 class="section-title">Audits collected so far</h2>
+        </div>
+        <div class="split-header__aside">
+          <p class="audit-head__text">
+            Every audit submitted through the field form appears here as soon as it is received. The count and map refresh on their own.
+          </p>
+        </div>
+      </div>
+
+      <div class="audit">
+
+        <div class="audit__main">
+          <div class="audit__map-frame">
+            <div id="audit-map" class="audit__map" role="region" aria-label="Map of audit locations"></div>
+            <p class="audit__map-empty" id="audit-map-empty" hidden></p>
+          </div>
+          <p class="audit__note">
+            Each green marker is one submitted audit. Click a marker to see when it was received.
+          </p>
+        </div>
+
+        <aside class="audit__aside">
+          <div class="audit__live" id="audit-live-flag" data-state="loading">
+            <span class="audit__live-dot"></span>
+            <span id="audit-live-text">Connecting…</span>
+          </div>
+
+          <div>
+            <span class="research__caption">Total audits</span>
+            <p class="audit__count" id="audit-count" aria-live="polite">–</p>
+          </div>
+
+          <dl class="audit__stats">
+            <div class="audit__stat">
+              <dt>Locations on map</dt>
+              <dd id="audit-located">–</dd>
+            </div>
+            <div class="audit__stat">
+              <dt>Latest audit</dt>
+              <dd id="audit-latest">–</dd>
+            </div>
+          </dl>
+
+          <a class="download-link" href="form.html">
+            <span>Submit an audit</span>
+            <span>→</span>
+          </a>
+        </aside>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================================================================
        SECTION 5: HOW MEMBERS PARTICIPATE (3 tiers)
        ================================================================== -->
   <section class="section section--contained" id="tiered-pathways">
@@ -594,6 +660,148 @@
 
   </div>
 </footer>
+
+<!-- ====================================================================
+     LIVE AUDIT COUNT + MAP (KoboToolbox)
+     ==================================================================== -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  // ---------- CONFIG: change these to point at another form ----------
+  var CONFIG = {
+    server:    'https://kf.kobotoolbox.org',
+    assetUid:  'aRsv9WJAACB3ripnKdJMBs',   // the ID in your Kobo project URL
+    refreshMs: 60000,                        // how often to re-check (ms)
+    pageSize:  1000
+  };
+  // -------------------------------------------------------------------
+
+  var el = function (id) { return document.getElementById(id); };
+  var countEl = el('audit-count'), locatedEl = el('audit-located'), latestEl = el('audit-latest'),
+      flagEl = el('audit-live-flag'), flagText = el('audit-live-text'), emptyEl = el('audit-map-empty');
+  if (!el('audit-map') || !window.L) return;
+
+  var reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  // India-centred starting view
+  var map = L.map('audit-map', { scrollWheelZoom: false }).setView([22.5, 79], 4);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(map);
+  var markers = L.layerGroup().addTo(map);
+
+  // Ctrl/Cmd + scroll zooms; plain scroll keeps scrolling the page
+  map.getContainer().addEventListener('wheel', function (e) {
+    if (e.ctrlKey || e.metaKey) { map.scrollWheelZoom.enable(); } else { map.scrollWheelZoom.disable(); }
+  }, { passive: true });
+
+  function setState(state, text) { flagEl.dataset.state = state; flagText.textContent = text; }
+
+  function validPoint(lat, lng) {
+    return isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
+  }
+
+  // Kobo adds _geolocation ([lat, lng]) for the first geopoint question.
+  // If it is missing, look for any "lat lng alt acc" text value in the submission.
+  function getPoint(r) {
+    var g = r._geolocation;
+    if (Array.isArray(g) && g.length >= 2 && g[0] !== null && g[1] !== null) {
+      var a = parseFloat(g[0]), b = parseFloat(g[1]);
+      if (validPoint(a, b)) return [a, b];
+    }
+    for (var k in r) {
+      var v = r[k];
+      if (typeof v === 'string') {
+        var m = v.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s+(-?\d{1,3}(?:\.\d+)?)(?:\s+-?\d+(?:\.\d+)?){0,2}\s*$/);
+        if (m && validPoint(parseFloat(m[1]), parseFloat(m[2]))) return [parseFloat(m[1]), parseFloat(m[2])];
+      }
+    }
+    return null;
+  }
+
+  function fmtDate(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  var shown = 0;
+  function animateCount(to) {
+    if (reduceMotion || shown === to) { countEl.textContent = to.toLocaleString(); shown = to; return; }
+    var from = shown, start = performance.now(), dur = 900;
+    (function step(now) {
+      var t = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - t, 3);
+      countEl.textContent = Math.round(from + (to - from) * e).toLocaleString();
+      if (t < 1) requestAnimationFrame(step);
+    })(start);
+    shown = to;
+  }
+
+  function fetchAll() {
+    var rows = [];
+    function page(url) {
+      return fetch(url).then(function (res) {
+        if (!res.ok) { var err = new Error('HTTP ' + res.status); err.status = res.status; throw err; }
+        return res.json();
+      }).then(function (data) {
+        rows = rows.concat(data.results || []);
+        return data.next ? page(data.next) : { rows: rows, count: data.count };
+      });
+    }
+    return page(CONFIG.server + '/api/v2/assets/' + CONFIG.assetUid + '/data/?format=json&limit=' + CONFIG.pageSize);
+  }
+
+  function render(result) {
+    var rows = result.rows, bounds = [], located = 0, latest = null;
+    markers.clearLayers();
+    rows.forEach(function (r) {
+      var t = r._submission_time;
+      if (t && (!latest || t > latest)) latest = t;
+      var pt = getPoint(r);
+      if (!pt) return;
+      located++; bounds.push(pt);
+      L.circleMarker(pt, { radius: 7, color: '#ffffff', weight: 2, fillColor: '#1c3d2e', fillOpacity: 0.95 })
+        .bindPopup('<strong>Audit received</strong><br>' + (fmtDate(t) || 'Date unavailable'))
+        .addTo(markers);
+    });
+
+    animateCount(typeof result.count === 'number' ? result.count : rows.length);
+    locatedEl.textContent = located.toLocaleString();
+    latestEl.textContent = latest ? fmtDate(latest) : 'None yet';
+
+    if (bounds.length) {
+      emptyEl.hidden = true;
+      if (bounds.length === 1) map.setView(bounds[0], 12);
+      else map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+    } else {
+      emptyEl.hidden = false;
+      emptyEl.textContent = rows.length
+        ? 'Audits have been received, but none include a location yet.'
+        : 'No audits yet. The first submission will appear here.';
+    }
+    setState('live', 'Live · updated ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }));
+  }
+
+  function fail(err) {
+    var msg = (err && (err.status === 401 || err.status === 403))
+      ? 'Data is private. In KoboToolbox, open the project, go to Share, and allow anyone to view submissions.'
+      : 'Could not reach KoboToolbox. Retrying shortly.';
+    setState('error', msg);
+    if (countEl.textContent === '–') {
+      emptyEl.hidden = false;
+      emptyEl.textContent = msg;
+    }
+  }
+
+  function load() {
+    fetchAll().then(render).catch(fail);
+  }
+  load();
+  setInterval(function () { if (!document.hidden) load(); }, CONFIG.refreshMs);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
+})();
+</script>
 
 </body>
 </html>
