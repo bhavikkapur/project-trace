@@ -20,6 +20,7 @@
 
 <!-- Fonts & icons -->
 <!-- Map library (Leaflet) for the live audit map -->
+ 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="stylesheet.css">
 <link href="https://fonts.googleapis.com" rel="preconnect">
@@ -47,10 +48,12 @@
     </a>
 
     <nav class="site-nav">
-      <a class="nav-link" data-path="about-mission"        href="index.html#narrative-journey">Genesis Story</a>
-      <a class="nav-link" data-path="four-pillars"         href="index.html#four-pillars">Four Pillars</a>
+      <a class="nav-link" data-path="about-mission"        href="index.html#home ">Home</a>
+      <a class="nav-link" data-path="four-pillars"         href="index.html#four-pillars">Pillars</a>
       <a class="nav-link" data-path="current-research"     href="index.html#research-pilot">Current Research</a>
       <a class="nav-link" data-path="governance-integrity" href="index.html#governance-integrity">Governance</a>
+      <a class="nav-link" data-path="audit-live" href="index.html#audit-live">Audits Received</a>
+
     </nav>
 
     <div class="header-actions">
@@ -67,7 +70,7 @@
   <!-- ==================================================================
        SECTION 1: HERO + "WHY VERIFIED FIELD EVIDENCE MATTERS"
        ================================================================== -->
-  <section class="hero">
+  <section class="hero" id="home">
 
     <div class="hero__intro">
       <div class="hero__text fade-up fade-up--delay-1">
@@ -667,14 +670,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 (function () {
-  // ---------- CONFIG: change these to point at another form ----------
+  // ---------- CONFIG ----------
   var CONFIG = {
     server:    'https://kf.kobotoolbox.org',
-    assetUid:  'aRsv9WJAACB3ripnKdJMBs',   // the ID in your Kobo project URL
-    refreshMs: 60000,                        // how often to re-check (ms)
+    assetUid:  'aRsv9WJAACB3ripnKdJMBs',
+    proxyUrl:  'https://prokecttrace.bhavikkapur2507.workers.dev/',
+    refreshMs: 60000,
     pageSize:  1000
   };
-  // -------------------------------------------------------------------
+  // ----------------------------
 
   var el = function (id) { return document.getElementById(id); };
   var countEl = el('audit-count'), locatedEl = el('audit-located'), latestEl = el('audit-latest'),
@@ -683,15 +687,13 @@
 
   var reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-  // India-centred starting view
   var map = L.map('audit-map', { scrollWheelZoom: false }).setView([22.5, 79], 4);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 18,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
   var markers = L.layerGroup().addTo(map);
 
-  // Ctrl/Cmd + scroll zooms; plain scroll keeps scrolling the page
   map.getContainer().addEventListener('wheel', function (e) {
     if (e.ctrlKey || e.metaKey) { map.scrollWheelZoom.enable(); } else { map.scrollWheelZoom.disable(); }
   }, { passive: true });
@@ -702,8 +704,6 @@
     return isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
   }
 
-  // Kobo adds _geolocation ([lat, lng]) for the first geopoint question.
-  // If it is missing, look for any "lat lng alt acc" text value in the submission.
   function getPoint(r) {
     var g = r._geolocation;
     if (Array.isArray(g) && g.length >= 2 && g[0] !== null && g[1] !== null) {
@@ -739,6 +739,18 @@
   }
 
   function fetchAll() {
+    if (CONFIG.proxyUrl) {
+      return fetch(CONFIG.proxyUrl).then(function (res) {
+        if (!res.ok) { var err = new Error('HTTP ' + res.status); err.status = res.status; throw err; }
+        return res.json();
+      }).then(function (data) {
+        if (data.error) throw new Error(data.error);
+        var rows = (data.items || []).map(function (i) {
+          return { _geolocation: [i.lat, i.lng], _submission_time: i.t };
+        });
+        return { rows: rows, count: data.count };
+      });
+    }
     var rows = [];
     function page(url) {
       return fetch(url).then(function (res) {
@@ -785,7 +797,7 @@
 
   function fail(err) {
     var msg = (err && (err.status === 401 || err.status === 403))
-      ? 'Data is private. In KoboToolbox, open the project, go to Share, and allow anyone to view submissions.'
+      ? 'Kobo is asking for an API key. Set up the proxy (proxyUrl in CONFIG) so the key stays private.'
       : 'Could not reach KoboToolbox. Retrying shortly.';
     setState('error', msg);
     if (countEl.textContent === '–') {
@@ -794,9 +806,7 @@
     }
   }
 
-  function load() {
-    fetchAll().then(render).catch(fail);
-  }
+  function load() { fetchAll().then(render).catch(fail); }
   load();
   setInterval(function () { if (!document.hidden) load(); }, CONFIG.refreshMs);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
