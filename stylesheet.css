@@ -1176,3 +1176,144 @@ img            { max-width: 100%; height: auto; }
   color: var(--grey-500);
 }
 @media (min-width: 1024px) { .footer-meta { align-items: flex-end; } }
+
+
+/* ==========================================================================
+   15. INTRO PRELOADER  (added)
+   --------------------------------------------------------------------------
+   Phase 1  Words + curved wipe        (Skiper 8 style)   canvas  #12241b
+   Phase 2  "We are collecting..."     (Skiper 9 stairs)  forest  #1c3d2e
+   Phase 3  "Welcome to Project Trace" (Skiper 10 stairs) canopy  #153615
+   Final    Porcelain wipe into the white hero            #f4f5f4
+   Everything is namespaced pt / pt__ so nothing above is affected.
+   Timing lives in the <script> directly under <body> in index.html.
+   ========================================================================== */
+.pt {
+  --pt-canvas:    #12241b;
+  --pt-forest:    #1c3d2e;
+  --pt-canopy:    #153615;
+  --pt-porcelain: #f4f5f4;
+  --pt-ease:      cubic-bezier(0.76, 0, 0.24, 1);
+  --pt-cols:      6;
+
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  color: var(--pt-porcelain);
+}
+
+/* While the intro plays: no scrolling, and the hero's own fade-in waits
+   for the final wipe instead of finishing unseen behind the overlay. */
+html.pt-loading { overflow: hidden; }
+html.pt-loading .fade-up { animation-play-state: paused; }
+
+/* Layers stack bottom (4) to top (1); each one lifts away to reveal the next */
+.pt__layer { position: absolute; inset: 0; }
+.pt__layer--4 { z-index: 1; }
+.pt__layer--3 { z-index: 2; }
+.pt__layer--2 { z-index: 3; }
+.pt__layer--1 { z-index: 4; }
+
+/* ---- Stair columns (phases 2, 3 and the final wipe) ---- */
+.pt__col {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--i) * 100% / var(--pt-cols));
+  width: calc(100% / var(--pt-cols) + 1px);   /* +1px hides sub-pixel seams */
+  background: var(--c);
+  transition: transform 0.45s var(--pt-ease) calc(var(--o) * var(--step));
+  will-change: transform;
+}
+.pt__layer--2 { --step: 50ms; }
+.pt__layer--3 { --step: 45ms; }
+.pt__layer--4 { --step: 45ms; }
+.pt__layer--2 .pt__col { --c: #ffffff; }   /* matches the white hero */
+.pt__layer--3 .pt__col { --c: var(--pt-canopy); }
+.pt__layer--4 .pt__col { --c: var(--pt-porcelain); }
+.pt__layer.is-out .pt__col { transform: translateY(-100%); }
+
+/* ---- Phase 1: cycling words + curved exit ---- */
+.pt__layer--1 {
+  display: grid;
+  place-items: center;
+  background: var(--pt-canvas);
+  transition: transform 0.48s var(--pt-ease);
+}
+.pt__layer--1::after {                       /* the curved lower edge */
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: -10%;
+  width: 120%;
+  height: 16vh;
+  background: var(--pt-canvas);
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  transform-origin: top;
+  transition: transform 0.48s var(--pt-ease);
+}
+.pt__layer--1.is-out { transform: translateY(calc(-100% - 16vh)); }
+.pt__layer--1.is-out::after { transform: scaleY(0); }
+
+.pt__word {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-weight: 600;
+  font-size: clamp(1.5rem, 4vw, 3rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.pt__dot {
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 50%;
+  background: var(--pt-porcelain);
+}
+
+/* ---- Statements for phases 2 and 3 ---- */
+.pt__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 0 var(--page-pad-x, 1.5rem);
+  text-align: center;
+}
+.pt__msg { text-wrap: balance; }
+.pt__msg--collect {
+  max-width: 26em;
+  font-family: "Playfair Display", serif;
+  font-weight: 400;
+  color: #000000;
+  font-size: clamp(1.05rem, 1.7vw, 1.5rem);
+  line-height: 1.4;
+}
+.pt__msg--welcome {
+  max-width: 20em;
+  font-family: "Playfair Display", serif;
+  font-weight: 400;
+  font-size: clamp(1.15rem, 2vw, 1.75rem);
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+.pt__layer.is-out .pt__msg { opacity: 0; transition: opacity 0.25s ease; }
+
+/* Word-by-word rise (words are wrapped by the script) */
+.pt__w {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding: 0.04em 0.08em 0.2em;      /* room for descenders and italic overhang */
+  margin: -0.04em -0.08em -0.2em;
+}
+.pt__w > span {
+  display: inline-block;
+  transform: translateY(110%);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--w) * 45ms);
+}
+.pt__msg.is-in .pt__w > span { transform: none; }

@@ -30,9 +30,131 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap" rel="stylesheet">
+
+<!-- Preloader (added): light italic Newsreader for phase 2 + guard so the intro can never get stuck -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,300&display=swap">
+<script>
+document.documentElement.classList.add('pt-loading');
+setTimeout(function () {
+  var p = document.getElementById('pt-preloader');
+  if (p && p.parentNode) p.parentNode.removeChild(p);
+  document.documentElement.classList.remove('pt-loading');
+}, 8000);
+</script>
 </head>
 
 <body>
+<!-- ====================================================================
+     INTRO PRELOADER (added)
+     Phase 1: words  ->  Phase 2: "We are collecting..."  ->  Phase 3: "Welcome to Project Trace"
+     Edit the words/timing in the <script> right below. Styles: section 15 of stylesheet.css
+     ==================================================================== -->
+<div class="pt" id="pt-preloader" aria-hidden="true">
+
+  <!-- Final porcelain wipe -->
+  <div class="pt__layer pt__layer--4">
+      <i class="pt__col" style="--i:0;--o:0"></i>
+      <i class="pt__col" style="--i:1;--o:1"></i>
+      <i class="pt__col" style="--i:2;--o:2"></i>
+      <i class="pt__col" style="--i:3;--o:3"></i>
+      <i class="pt__col" style="--i:4;--o:4"></i>
+      <i class="pt__col" style="--i:5;--o:5"></i>
+  </div>
+
+  <!-- Phase 3 -->
+  <div class="pt__layer pt__layer--3">
+      <i class="pt__col" style="--i:0;--o:5"></i>
+      <i class="pt__col" style="--i:1;--o:4"></i>
+      <i class="pt__col" style="--i:2;--o:3"></i>
+      <i class="pt__col" style="--i:3;--o:2"></i>
+      <i class="pt__col" style="--i:4;--o:1"></i>
+      <i class="pt__col" style="--i:5;--o:0"></i>
+    <div class="pt__stage"><p class="pt__msg pt__msg--welcome" data-split>Welcome to Project Trace</p></div>
+  </div>
+
+  <!-- Phase 2 -->
+  <div class="pt__layer pt__layer--2">
+      <i class="pt__col" style="--i:0;--o:0"></i>
+      <i class="pt__col" style="--i:1;--o:1"></i>
+      <i class="pt__col" style="--i:2;--o:2"></i>
+      <i class="pt__col" style="--i:3;--o:3"></i>
+      <i class="pt__col" style="--i:4;--o:4"></i>
+      <i class="pt__col" style="--i:5;--o:5"></i>
+    <div class="pt__stage"><p class="pt__msg pt__msg--collect" data-split>We are collecting local data to improve our communities and environment.</p></div>
+  </div>
+
+  <!-- Phase 1 -->
+  <div class="pt__layer pt__layer--1">
+    <p class="pt__word"><span class="pt__dot"></span><span id="pt-word">Hello</span></p>
+  </div>
+
+</div>
+<noscript><style>#pt-preloader{display:none}html.pt-loading{overflow:auto}</style></noscript>
+<script>
+(function () {
+  var root = document.documentElement;
+  var pt = document.getElementById('pt-preloader');
+  if (!pt) return;
+
+  function finish() {
+    root.classList.remove('pt-loading');
+    if (pt.parentNode) pt.parentNode.removeChild(pt);
+  }
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { finish(); return; }
+
+  function q(s) { return pt.querySelector(s); }
+  var l1 = q('.pt__layer--1'), l2 = q('.pt__layer--2'), l3 = q('.pt__layer--3'), l4 = q('.pt__layer--4');
+  var msg2 = q('.pt__msg--collect'), msg3 = q('.pt__msg--welcome'), wordEl = document.getElementById('pt-word');
+
+  // Wrap each word of the two statements so they can rise in one by one
+  Array.prototype.forEach.call(pt.querySelectorAll('[data-split]'), function (el) {
+    var words = el.textContent.trim().split(/\s+/);
+    el.textContent = '';
+    words.forEach(function (w, i) {
+      var mask = document.createElement('span'), inner = document.createElement('span');
+      mask.className = 'pt__w';
+      inner.style.setProperty('--w', i);
+      inner.textContent = w;
+      mask.appendChild(inner);
+      el.appendChild(mask);
+      if (i < words.length - 1) el.appendChild(document.createTextNode(' '));
+    });
+  });
+
+  // ---- Timeline (ms) : whole intro ends at ~4.45s ----
+  var WORDS = ['Hello', 'Namaste', 'Bonjour', 'Hola', 'Ciao', 'Salaam'];
+  var HOLD  = [240, 150, 150, 150, 150, 160];          // phase 1 = 1.0s of words
+  function at(ms, fn) { setTimeout(fn, ms); }
+
+  function start() {
+    var i = 0;
+    (function tick() {
+      wordEl.textContent = WORDS[i];
+      if (i < WORDS.length - 1) { setTimeout(tick, HOLD[i]); i++; }
+    })();
+
+    at(1000, function () { l1.classList.add('is-out'); });    // curved wipe reveals phase 2
+    at(1150, function () { msg2.classList.add('is-in'); });
+    at(2400, function () { l2.classList.add('is-out'); });    // stairs lift, reveal phase 3
+    at(2650, function () { msg3.classList.add('is-in'); });
+    at(3650, function () { l3.classList.add('is-out'); });    // second set of stairs
+    at(3800, function () { l4.classList.add('is-out'); });    // porcelain wipe into the hero
+    at(3900, function () { root.classList.remove('pt-loading'); });  // hero fade-in begins
+    at(4520, finish);
+  }
+
+  // Wait briefly for the three display fonts so nothing flashes in a fallback face
+  var wait = new Promise(function (r) { setTimeout(r, 250); });
+  var fonts = (document.fonts && document.fonts.load) ? Promise.race([
+    Promise.all([
+      document.fonts.load('400 1em "Playfair Display"'),
+      document.fonts.load('500 1em "Playfair Display"'),
+      document.fonts.load('600 1em "Plus Jakarta Sans"')
+    ]), wait]) : Promise.resolve();
+  fonts.then(start, start);
+})();
+</script>
+
 
 <!-- ====================================================================
      HEADER
