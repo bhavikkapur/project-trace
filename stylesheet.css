@@ -411,9 +411,9 @@ img            { max-width: 100%; height: auto; }
   color: var(--color-black);
 }
 .hero__title-accent { color: var(--color-primary); }
-@media (min-width: 640px)  { .hero__title { font-size: 4.25rem; line-height: 1; } }
-@media (min-width: 768px)  { .hero__title { font-size: 4.5rem; } }
-@media (min-width: 1024px) { .hero__title { font-size: 5rem; } }
+@media (min-width: 640px)  { .hero__title { font-size: 4.5rem; line-height: 1; } }
+@media (min-width: 768px)  { .hero__title { font-size: 4.8rem; } }
+@media (min-width: 1024px) { .hero__title { font-size: 6rem; } }
 
 .hero__lead {
   max-width: 48rem;
